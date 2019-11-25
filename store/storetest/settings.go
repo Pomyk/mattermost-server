@@ -62,12 +62,6 @@ func MySQLSettings() *model.SqlSettings {
 	return databaseSettings("mysql", cfg.FormatDSN())
 }
 
-// MySQLBenchmarkSettings returns the database settings to connect to the MySQL benchmark database.
-func MySQLBenchmarkSettings() *model.SqlSettings {
-	dsn := getEnv("BENCHMARK_DATABASE_MYSQL_DSN", defaultMysqlDSN)
-	return databaseSettings("mysql", dsn)
-}
-
 // PostgresSQLSettings returns the database settings to connect to the PostgreSQL unittesting database.
 // The database name is generated randomly and must be created before use.
 func PostgreSQLSettings() *model.SqlSettings {
@@ -81,12 +75,6 @@ func PostgreSQLSettings() *model.SqlSettings {
 	dsnUrl.Path = "db" + model.NewId()
 
 	return databaseSettings("postgres", dsnUrl.String())
-}
-
-// PostgresSQLBenchmarkSettings returns the database settings to connect to the PostgreSQL benchmark database.
-func PostgreSQLBenchmarkSettings() *model.SqlSettings {
-	dsn := getEnv("BENCHMARK_DATABASE_POSTGRESQL_DSN", defaultPostgresqlDSN)
-	return databaseSettings("postgres", dsn)
 }
 
 func mySQLRootDSN(dsn string) string {

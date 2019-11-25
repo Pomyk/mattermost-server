@@ -3,6 +3,7 @@ package benchmarks
 import (
 	"encoding/json"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/mattermost/mattermost-server/model"
@@ -23,7 +24,8 @@ func BenchmarkChannels(b *testing.B) {
 		b.Fatal(err)
 		return
 	}
-	for _, drv := range []string{"mysql", "postgres"} {
+	drivers := strings.Split(getEnv("BENCHMARK_DRIVERS", "postgres,mysql"), ",")
+	for _, drv := range drivers {
 		supplier := setup(drv)
 		store := supplier.Channel()
 		for idx, testcase := range cases {
