@@ -11,7 +11,7 @@ func MySQLBenchmarkSettings() *model.SqlSettings {
 	return databaseSettings("mysql", dsn)
 }
 
-// PostgresSQLBenchmarkSettings returns the database settings to connect to the PostgreSQL benchmark database.
+// PostgreSQLBenchmarkSettings returns the database settings to connect to the PostgreSQL benchmark database.
 func PostgreSQLBenchmarkSettings() *model.SqlSettings {
 	dsn := getEnv("BENCHMARK_DATABASE_POSTGRESQL_DSN", defaultPostgresqlDSN)
 	return databaseSettings("postgres", dsn)

@@ -20,6 +20,7 @@ type storeType struct {
 }
 
 var storeTypes []*storeType
+var benchmarkStoreTypes []*storeType
 
 func StoreTest(t *testing.T, f func(*testing.T, store.Store)) {
 	defer func() {
@@ -47,6 +48,19 @@ func StoreTestWithSqlSupplier(t *testing.T, f func(*testing.T, store.Store, stor
 	}
 }
 
+func StoreBenchmark(b *testing.B, f func(*testing.B, store.Store)) {
+	defer func() {
+		if err := recover(); err != nil {
+			tearDownStores()
+			panic(err)
+		}
+	}()
+	for _, st := range benchmarkStoreTypes {
+		st := st
+		b.Run(st.Name, func(b *testing.B) { f(b, st.Store) })
+	}
+}
+
 func initStores() {
 	storeTypes = append(storeTypes, &storeType{
 		Name:        "MySQL",
@@ -55,6 +69,15 @@ func initStores() {
 	storeTypes = append(storeTypes, &storeType{
 		Name:        "PostgreSQL",
 		SqlSettings: storetest.MakeSqlSettings(model.DATABASE_DRIVER_POSTGRES),
+	})
+
+	benchmarkStoreTypes = append(benchmarkStoreTypes, &storeType{
+		Name:        "MySQL",
+		SqlSettings: storetest.MySQLBenchmarkSettings(),
+	})
+	benchmarkStoreTypes = append(benchmarkStoreTypes, &storeType{
+		Name:        "PostgreSQL",
+		SqlSettings: storetest.PostgreSQLBenchmarkSettings(),
 	})
 
 	defer func() {
@@ -74,6 +97,10 @@ func initStores() {
 			st.Store.DropAllTables()
 			st.Store.MarkSystemRanUnitTests()
 		}()
+	}
+	for _, st := range benchmarkStoreTypes {
+		st.SqlSupplier = NewSqlSupplier(*st.SqlSettings, nil)
+		st.Store = st.SqlSupplier
 	}
 	wg.Wait()
 }
