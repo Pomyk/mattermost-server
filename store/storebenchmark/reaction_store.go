@@ -4,6 +4,8 @@
 package storebenchmark
 
 import (
+	"encoding/json"
+	"strconv"
 	"testing"
 
 	"github.com/mattermost/mattermost-server/v5/model"
@@ -13,13 +15,25 @@ import (
 var reactionList []*model.Reaction
 
 func BenchmarkReactionStore(b *testing.B, ss store.Store) {
-	postId := getEnv("BENCHMARK_REACTIONS_DATA", "111fhwfzbbrzbe37zmsaqs3kcr")
+	cases := []struct {
+		PostId string `json:"post_id"`
+	}{}
+	data := getEnv("BENCHMARK_REACTIONS_DATA", `[{"post_id":"111fhwfzbbrzbe37zmsaqs3kcr"}]`)
+	err := json.Unmarshal([]byte(data), &cases)
+	if err != nil {
+		b.Fatal("json deserialization error:", err)
+		return
+	}
 
 	s := ss.Reaction()
 
-	b.Run("GetForPost", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			reactionList, appErr = s.GetForPost(postId, false)
-		}
-	})
+	for idx, testcase := range cases {
+		postId := testcase.PostId
+		num := strconv.Itoa(idx + 1)
+		b.Run("GetForPost/"+num, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				reactionList, appErr = s.GetForPost(postId, false)
+			}
+		})
+	}
 }

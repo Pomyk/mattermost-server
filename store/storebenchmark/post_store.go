@@ -28,7 +28,7 @@ func BenchmarkPostStore(b *testing.B, ss store.Store) {
 		`)
 	err := json.Unmarshal([]byte(data), &cases)
 	if err != nil {
-		b.Fatal(err)
+		b.Fatal("json deserialization error:", err)
 		return
 	}
 	s := ss.Post()

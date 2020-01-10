@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/mattermost/mattermost-server/v5/model"
+	"github.com/mattermost/mattermost-server/v5/store/storebenchmark"
 	"github.com/mattermost/mattermost-server/v5/store/storetest"
 	"github.com/mattermost/mattermost-server/v5/store/storetest/mocks"
 	"github.com/stretchr/testify/assert"
@@ -16,6 +17,10 @@ import (
 
 func TestPostStore(t *testing.T) {
 	StoreTestWithSqlSupplier(t, storetest.TestPostStore)
+}
+
+func BenchmarkChannelStore(b *testing.B) {
+	StoreBenchmark(b, storebenchmark.BenchmarkChannelStore)
 }
 
 func TestPostStoreLastPostTimeCache(t *testing.T) {
