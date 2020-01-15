@@ -36,18 +36,18 @@ func (m *CreateIndex) Name() string {
 }
 
 // GetStatus returns if the migration should be executed or not
-func (m *CreateIndex) GetStatus(ss *sqlstore.SqlSupplier) (AsyncMigrationStatus, error) {
+func (m *CreateIndex) GetStatus(ss SqlStore) (AsyncMigrationStatus, error) {
 	if ss.DriverName() == model.DATABASE_DRIVER_POSTGRES {
 		_, errExists := ss.GetMaster().SelectStr("SELECT $1::regclass", m.name)
 		// It should fail if the index does not exist
 		if errExists == nil {
 			return AsyncMigrationStatusSkip, nil
 		}
-		if m.indexType == INDEX_TYPE_FULL_TEXT && len(m.columns) != 1 {
+		if m.indexType == sqlstore.INDEX_TYPE_FULL_TEXT && len(m.columns) != 1 {
 			return AsyncMigrationStatusFailed, errors.New("Unable to create multi column full text index")
 		}
 	} else if ss.DriverName() == model.DATABASE_DRIVER_MYSQL {
-		if m.indexType == INDEX_TYPE_FULL_TEXT {
+		if m.indexType == sqlstore.INDEX_TYPE_FULL_TEXT {
 			return AsyncMigrationStatusFailed, errors.New("Unable to create full text index concurrently")
 		}
 		count, err := ss.GetMaster().SelectInt("SELECT COUNT(0) AS index_exists FROM information_schema.statistics WHERE TABLE_SCHEMA = DATABASE() and table_name = ? AND index_name = ?", m.table, m.name)
@@ -62,7 +62,7 @@ func (m *CreateIndex) GetStatus(ss *sqlstore.SqlSupplier) (AsyncMigrationStatus,
 }
 
 // Execute runs the migration
-func (m *CreateIndex) Execute(ss *sqlstore.SqlSupplier, tx *gorp.Transaction) (AsyncMigrationStatus, error) {
+func (m *CreateIndex) Execute(ss SqlStore, tx *gorp.Transaction) (AsyncMigrationStatus, error) {
 	// TODO
 	return AsyncMigrationStatusComplete, nil
 }

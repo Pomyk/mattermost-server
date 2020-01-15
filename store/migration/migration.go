@@ -10,7 +10,7 @@ import (
 	"github.com/mattermost/gorp"
 	"github.com/mattermost/mattermost-server/v5/mlog"
 	"github.com/mattermost/mattermost-server/v5/model"
-	"github.com/mattermost/mattermost-server/v5/store/sqlstore"
+	"github.com/mattermost/mattermost-server/v5/store"
 )
 
 type AsyncMigrationStatus string
@@ -28,18 +28,25 @@ type AsyncMigration interface {
 	// name of migration, must be unique among migrations - used for saving status in database
 	Name() string
 	// returns if migration should be run / was already executed
-	GetStatus(*sqlstore.SqlSupplier) (AsyncMigrationStatus, error)
+	GetStatus(SqlStore) (AsyncMigrationStatus, error)
 	// exectutes migration, gets started transaction with lock timeouts set
-	Execute(*sqlstore.SqlSupplier, *gorp.Transaction) (AsyncMigrationStatus, error)
+	Execute(SqlStore, *gorp.Transaction) (AsyncMigrationStatus, error)
+}
+
+// SqlStore - minimal interface needed
+type SqlStore interface {
+	DriverName() string
+	GetMaster() *gorp.DbMap
+	System() store.SystemStore
 }
 
 // MigrationRunner runs queued async migrations
 type MigrationRunner struct {
-	supplier   *sqlstore.SqlSupplier
+	supplier   SqlStore
 	migrations []AsyncMigration
 }
 
-func NewMigrationRunner(s *sqlStore.Supplier) {
+func NewMigrationRunner(s SqlStore) *MigrationRunner {
 	return &MigrationRunner{
 		supplier: s,
 	}
@@ -60,7 +67,7 @@ func (r *MigrationRunner) Add(m AsyncMigration) error {
 	if err != nil {
 		return err
 	}
-	if status == AsyncMigrationStatusComplete || status.Value == AsyncMigrationStatusSkip {
+	if status == AsyncMigrationStatusComplete || status == AsyncMigrationStatusSkip {
 		return nil
 	}
 	r.migrations = append(r.migrations, m)
@@ -112,7 +119,7 @@ func (r *MigrationRunner) Run() error {
 }
 
 // use a transaction because that guarantees a single session for all queries
-func createTransactionWithLockTimeouts(s *sqlstore.SqlSupplier) (*gorp.Transaction, error) {
+func createTransactionWithLockTimeouts(s SqlStore) (*gorp.Transaction, error) {
 	tx, err := s.GetMaster().Begin()
 	if err != nil {
 		return nil, err
@@ -128,7 +135,7 @@ func createTransactionWithLockTimeouts(s *sqlstore.SqlSupplier) (*gorp.Transacti
 }
 
 // finishTransaction reverts session variables and commits or rollbacks transaction
-func finishTransaction(s *sqlstore.SqlSupplier, tx *gorp.Transaction, err *error) {
+func finishTransaction(s SqlStore, tx *gorp.Transaction, err *error) {
 	if s.DriverName() == model.DATABASE_DRIVER_MYSQL {
 		// revert lock timeout to global value
 		tx.Exec("SET SESSION lock_wait_timeout = @@GLOBAL.lock_wait_timeout")
