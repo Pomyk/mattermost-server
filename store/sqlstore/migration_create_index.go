@@ -1,14 +1,15 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-package migration
+package sqlstore
 
 import (
+	"context"
+	"database/sql"
 	"errors"
+	"strings"
 
-	"github.com/mattermost/gorp"
 	"github.com/mattermost/mattermost-server/v5/model"
-	"github.com/mattermost/mattermost-server/v5/store/sqlstore"
 )
 
 // CreateIndex - asynchronous migration that adds an index to table
@@ -43,11 +44,11 @@ func (m *CreateIndex) GetStatus(ss SqlStore) (AsyncMigrationStatus, error) {
 		if errExists == nil {
 			return AsyncMigrationStatusSkip, nil
 		}
-		if m.indexType == sqlstore.INDEX_TYPE_FULL_TEXT && len(m.columns) != 1 {
+		if m.indexType == INDEX_TYPE_FULL_TEXT && len(m.columns) != 1 {
 			return AsyncMigrationStatusFailed, errors.New("Unable to create multi column full text index")
 		}
 	} else if ss.DriverName() == model.DATABASE_DRIVER_MYSQL {
-		if m.indexType == sqlstore.INDEX_TYPE_FULL_TEXT {
+		if m.indexType == INDEX_TYPE_FULL_TEXT {
 			return AsyncMigrationStatusFailed, errors.New("Unable to create full text index concurrently")
 		}
 		count, err := ss.GetMaster().SelectInt("SELECT COUNT(0) AS index_exists FROM information_schema.statistics WHERE TABLE_SCHEMA = DATABASE() and table_name = ? AND index_name = ?", m.table, m.name)
@@ -62,7 +63,32 @@ func (m *CreateIndex) GetStatus(ss SqlStore) (AsyncMigrationStatus, error) {
 }
 
 // Execute runs the migration
-func (m *CreateIndex) Execute(ss SqlStore, tx *gorp.Transaction) (AsyncMigrationStatus, error) {
-	// TODO
+// Explicit connection is passed so that all queries run in a single session
+func (m *CreateIndex) Execute(ctx context.Context, ss SqlStore, conn *sql.Conn) (AsyncMigrationStatus, error) {
+	uniqueStr := ""
+	if m.unique {
+		uniqueStr = "UNIQUE "
+	}
+
+	if ss.DriverName() == model.DATABASE_DRIVER_POSTGRES {
+		query := ""
+		if m.indexType == INDEX_TYPE_FULL_TEXT {
+			columnName := m.columns[0]
+			postgresColumnNames := convertMySQLFullTextColumnsToPostgres(columnName)
+			query = "CREATE INDEX CONCURRENTLY " + m.name + " ON " + m.table + " USING gin(to_tsvector('english', " + postgresColumnNames + "))"
+		} else {
+			query = "CREATE " + uniqueStr + "INDEX CONCURRENTLY " + m.name + " ON " + m.table + " (" + strings.Join(m.columns, ", ") + ")"
+		}
+
+		_, err := conn.ExecContext(ctx, query)
+		if err != nil {
+			return AsyncMigrationStatusFailed, err
+		}
+	} else if ss.DriverName() == model.DATABASE_DRIVER_MYSQL {
+		_, err := conn.ExecContext(ctx, "CREATE  "+uniqueStr+" INDEX "+m.name+" ON "+m.table+" ("+strings.Join(m.columns, ", ")+")")
+		if err != nil {
+			return AsyncMigrationStatusFailed, err
+		}
+	}
 	return AsyncMigrationStatusComplete, nil
 }
