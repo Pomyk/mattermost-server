@@ -919,7 +919,7 @@ func TestPluginAPISetTeamIcon(t *testing.T) {
 }
 
 func TestPluginAPISearchChannels(t *testing.T) {
-	if testlib.TEST_DRIVER_NAME == model.DATABASE_DRIVER_SQLITE {
+	if true || testlib.TEST_DRIVER_NAME == model.DATABASE_DRIVER_SQLITE {
 		t.Skip("skiping the test for sqlite")
 	}
 	th := Setup(t).InitBasic()
@@ -940,7 +940,7 @@ func TestPluginAPISearchChannels(t *testing.T) {
 }
 
 func TestPluginAPISearchPostsInTeam(t *testing.T) {
-	if testlib.TEST_DRIVER_NAME == model.DATABASE_DRIVER_SQLITE {
+	if true || testlib.TEST_DRIVER_NAME == model.DATABASE_DRIVER_SQLITE {
 		t.Skip("skiping the test for sqlite")
 	}
 	th := Setup(t).InitBasic()
