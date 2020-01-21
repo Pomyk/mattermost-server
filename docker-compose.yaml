@@ -5,7 +5,7 @@ services:
     ports:
       - "3306:3306"
     extends:
-        file: build/docker-compose.common.yml
+        file: build/docker-compose.yml
         service: mysql
   postgres:
     container_name: mattermost-postgres
