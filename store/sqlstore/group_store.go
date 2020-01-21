@@ -104,7 +104,7 @@ func (s *SqlGroupStore) Create(group *model.Group) (*model.Group, *model.AppErro
 	group.UpdateAt = group.CreateAt
 
 	if err := s.GetMaster().Insert(group); err != nil {
-		if IsUniqueConstraintError(err, []string{"Name", "groups_name_key"}) {
+		if IsUniqueConstraintError(err, []string{"UserGroups.Name", "Name", "groups_name_key"}) {
 			return nil, model.NewAppError("SqlGroupStore.GroupCreate", "store.sql_group.unique_constraint", nil, err.Error(), http.StatusInternalServerError)
 		}
 		return nil, model.NewAppError("SqlGroupStore.GroupCreate", "store.insert_error", nil, err.Error(), http.StatusInternalServerError)
@@ -914,7 +914,10 @@ func (s *SqlGroupStore) groupsBySyncableBaseQuery(st model.GroupSyncableType, t 
 		operatorKeyword := "ILIKE"
 		if s.DriverName() == model.DATABASE_DRIVER_MYSQL {
 			operatorKeyword = "LIKE"
+		} else if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
+			operatorKeyword = "LIKE"
 		}
+
 		query = query.Where(fmt.Sprintf("(ug.Name %[1]s ? OR ug.DisplayName %[1]s ?)", operatorKeyword), pattern, pattern)
 	}
 
@@ -980,6 +983,8 @@ func (s *SqlGroupStore) GetGroups(page, perPage int, opts model.GroupSearchOpts)
 		operatorKeyword := "ILIKE"
 		if s.DriverName() == model.DATABASE_DRIVER_MYSQL {
 			operatorKeyword = "LIKE"
+		} else if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
+			operatorKeyword = "LIKE"
 		}
 		groupsQuery = groupsQuery.Where(fmt.Sprintf("(g.Name %[1]s ? OR g.DisplayName %[1]s ?)", operatorKeyword), pattern, pattern)
 	}
@@ -1036,6 +1041,8 @@ func (s *SqlGroupStore) teamMembersMinusGroupMembersQuery(teamID string, groupID
 	} else {
 		tmpl := "Users.*, coalesce(TeamMembers.SchemeGuest, false), TeamMembers.SchemeAdmin, TeamMembers.SchemeUser, %s AS GroupIDs"
 		if s.DriverName() == model.DATABASE_DRIVER_MYSQL {
+			selectStr = fmt.Sprintf(tmpl, "group_concat(UserGroups.Id)")
+		} else if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
 			selectStr = fmt.Sprintf(tmpl, "group_concat(UserGroups.Id)")
 		} else {
 			selectStr = fmt.Sprintf(tmpl, "string_agg(UserGroups.Id, ',')")
@@ -1114,6 +1121,8 @@ func (s *SqlGroupStore) channelMembersMinusGroupMembersQuery(channelID string, g
 	} else {
 		tmpl := "Users.*, coalesce(ChannelMembers.SchemeGuest, false), ChannelMembers.SchemeAdmin, ChannelMembers.SchemeUser, %s AS GroupIDs"
 		if s.DriverName() == model.DATABASE_DRIVER_MYSQL {
+			selectStr = fmt.Sprintf(tmpl, "group_concat(UserGroups.Id)")
+		} else if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
 			selectStr = fmt.Sprintf(tmpl, "group_concat(UserGroups.Id)")
 		} else {
 			selectStr = fmt.Sprintf(tmpl, "string_agg(UserGroups.Id, ',')")

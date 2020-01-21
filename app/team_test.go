@@ -797,8 +797,8 @@ func TestGetTeamMembers(t *testing.T) {
 	members = append(members, members2...)
 
 	require.Equal(t, len(userIDs), len(members))
-	for i, member := range members {
-		assert.Equal(t, userIDs[i], member.UserId)
+	for _, member := range members {
+		assert.Contains(t, userIDs, member.UserId)
 	}
 }
 

@@ -480,6 +480,7 @@ func testGroupStoreUpdate(t *testing.T, ss store.Store) {
 	})
 	require.Equal(t, err.Id, "store.update_error")
 
+	time.Sleep(time.Millisecond)
 	// Cannot update CreateAt
 	someVal := model.GetMillis()
 	d1.CreateAt = someVal
@@ -618,6 +619,7 @@ func testGroupGetMemberUsersPage(t *testing.T, ss store.Store) {
 	user1, err := ss.User().Save(u1)
 	require.Nil(t, err)
 
+	time.Sleep(time.Millisecond)
 	_, err = ss.Group().UpsertMember(group.Id, user1.Id)
 	require.Nil(t, err)
 
@@ -628,6 +630,7 @@ func testGroupGetMemberUsersPage(t *testing.T, ss store.Store) {
 	user2, err := ss.User().Save(u2)
 	require.Nil(t, err)
 
+	time.Sleep(time.Millisecond)
 	_, err = ss.Group().UpsertMember(group.Id, user2.Id)
 	require.Nil(t, err)
 
@@ -638,6 +641,7 @@ func testGroupGetMemberUsersPage(t *testing.T, ss store.Store) {
 	user3, err := ss.User().Save(u3)
 	require.Nil(t, err)
 
+	time.Sleep(time.Millisecond)
 	_, err = ss.Group().UpsertMember(group.Id, user3.Id)
 	require.Nil(t, err)
 
@@ -1058,6 +1062,7 @@ func testDeleteGroupSyncable(t *testing.T, ss store.Store) {
 	require.Equal(t, err.Id, "store.sql_group.no_rows")
 
 	// Happy path...
+	time.Sleep(time.Millisecond)
 	d1, err := ss.Group().DeleteGroupSyncable(groupTeam.GroupId, groupTeam.SyncableId, model.GroupSyncableTypeTeam)
 	require.Nil(t, err)
 	require.NotZero(t, d1.DeleteAt)
@@ -1113,12 +1118,16 @@ func testTeamMembersToAdd(t *testing.T, ss store.Store) {
 	syncable, err := ss.Group().CreateGroupSyncable(model.NewGroupTeam(group.Id, team.Id, true))
 	require.Nil(t, err)
 
+	time.Sleep(time.Millisecond)
+
 	// Time before syncable was created
 	teamMembers, err := ss.Group().TeamMembersToAdd(syncable.CreateAt-1, nil)
 	require.Nil(t, err)
 	require.Len(t, teamMembers, 1)
 	require.Equal(t, user.Id, teamMembers[0].UserID)
 	require.Equal(t, team.Id, teamMembers[0].TeamID)
+
+	time.Sleep(time.Millisecond)
 
 	// Time after syncable was created
 	teamMembers, err = ss.Group().TeamMembersToAdd(syncable.CreateAt+1, nil)
@@ -1130,6 +1139,8 @@ func testTeamMembersToAdd(t *testing.T, ss store.Store) {
 	require.Nil(t, err)
 	_, err = ss.Group().UpsertMember(group.Id, user.Id)
 	require.Nil(t, err)
+
+	time.Sleep(time.Millisecond)
 	teamMembers, err = ss.Group().TeamMembersToAdd(syncable.CreateAt+1, nil)
 	require.Nil(t, err)
 	require.Len(t, teamMembers, 1)
@@ -1362,6 +1373,8 @@ func testChannelMembersToAdd(t *testing.T, ss store.Store) {
 	syncable, err := ss.Group().CreateGroupSyncable(model.NewGroupChannel(group.Id, channel.Id, true))
 	require.Nil(t, err)
 
+	time.Sleep(time.Millisecond)
+
 	// Time before syncable was created
 	channelMembers, err := ss.Group().ChannelMembersToAdd(syncable.CreateAt-1, nil)
 	require.Nil(t, err)
@@ -1369,10 +1382,14 @@ func testChannelMembersToAdd(t *testing.T, ss store.Store) {
 	require.Equal(t, user.Id, channelMembers[0].UserID)
 	require.Equal(t, channel.Id, channelMembers[0].ChannelID)
 
+	time.Sleep(time.Millisecond)
+
 	// Time after syncable was created
 	channelMembers, err = ss.Group().ChannelMembersToAdd(syncable.CreateAt+1, nil)
 	require.Nil(t, err)
 	require.Empty(t, channelMembers)
+
+	time.Sleep(time.Millisecond)
 
 	// Delete and restore GroupMember should return result
 	_, err = ss.Group().DeleteMember(group.Id, user.Id)

@@ -46,7 +46,7 @@ func (s *SqlReactionStore) Save(reaction *model.Reaction) (*model.Reaction, *mod
 	appErr := saveReactionAndUpdatePost(transaction, reaction)
 	if appErr != nil {
 		// We don't consider duplicated save calls as an error
-		if !IsUniqueConstraintError(appErr, []string{"reactions_pkey", "PRIMARY"}) {
+		if !IsUniqueConstraintError(appErr, []string{"Reactions.UserId, Reactions.PostId, Reactions.EmojiName", "reactions_pkey", "PRIMARY"}) {
 			return nil, model.NewAppError("SqlPreferenceStore.Save", "store.sql_reaction.save.save.app_error", nil, appErr.Error(), http.StatusBadRequest)
 		}
 	} else {
@@ -149,8 +149,10 @@ func (s *SqlReactionStore) DeleteAllWithEmojiName(emojiName string) *model.AppEr
 
 func (s *SqlReactionStore) PermanentDeleteBatch(endTime int64, limit int64) (int64, *model.AppError) {
 	var query string
-	if s.DriverName() == "postgres" {
+	if s.DriverName() == model.DATABASE_DRIVER_POSTGRES {
 		query = "DELETE from Reactions WHERE CreateAt = any (array (SELECT CreateAt FROM Reactions WHERE CreateAt < :EndTime LIMIT :Limit))"
+	} else if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		query = "DELETE from Reactions WHERE CreateAt IN (SELECT CreateAt FROM Reactions WHERE CreateAt < :EndTime LIMIT :Limit)"
 	} else {
 		query = "DELETE from Reactions WHERE CreateAt < :EndTime LIMIT :Limit"
 	}

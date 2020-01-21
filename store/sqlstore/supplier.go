@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -24,6 +25,7 @@ import (
 	"github.com/mattermost/mattermost-server/v5/model"
 	"github.com/mattermost/mattermost-server/v5/store"
 	"github.com/mattermost/mattermost-server/v5/utils"
+	sqlite3 "github.com/mattn/go-sqlite3"
 )
 
 const (
@@ -370,6 +372,28 @@ func (ss *SqlSupplier) DoesTableExist(tableName string) bool {
 
 		return count > 0
 
+	} else if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+
+		count, err := ss.GetMaster().SelectInt(
+			`SELECT
+		    COUNT(0) AS table_exists
+			FROM
+			    sqlite_master
+			WHERE
+			    type='table' and name
+			    AND name = ?
+		    `,
+			tableName,
+		)
+
+		if err != nil {
+			mlog.Critical(fmt.Sprintf("Failed to check if table exists %v", err))
+			time.Sleep(time.Second)
+			os.Exit(EXIT_TABLE_EXISTS_MYSQL)
+		}
+
+		return count > 0
+
 	} else if ss.DriverName() == model.DATABASE_DRIVER_MYSQL {
 
 		count, err := ss.GetMaster().SelectInt(
@@ -434,6 +458,27 @@ func (ss *SqlSupplier) DoesColumnExist(tableName string, columnName string) bool
 			mlog.Critical("Failed to check if column exists", mlog.Err(err))
 			time.Sleep(time.Second)
 			os.Exit(EXIT_DOES_COLUMN_EXISTS_POSTGRES)
+		}
+
+		return count > 0
+
+	} else if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+
+		count, err := ss.GetMaster().SelectInt(
+			`SELECT
+				COUNT(0) AS column_exists
+			FROM
+				pragma_table_info(?)
+			WHERE
+				name = ?`,
+			tableName,
+			columnName,
+		)
+
+		if err != nil {
+			mlog.Critical(fmt.Sprintf("Failed to check if column exists %v", err))
+			time.Sleep(time.Second)
+			os.Exit(EXIT_DOES_COLUMN_EXISTS_MYSQL)
 		}
 
 		return count > 0
@@ -522,6 +567,25 @@ func (ss *SqlSupplier) DoesTriggerExist(triggerName string) bool {
 
 		return count > 0
 
+	} else if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		count, err := ss.GetMaster().SelectInt(`
+			SELECT
+		    	COUNT(0)
+			FROM
+			    sqlite_master
+			WHERE
+			    type='trigger'
+			    AND name = ?
+		`, triggerName)
+
+		if err != nil {
+			mlog.Critical("Failed to check if trigger exists", mlog.Err(err))
+			time.Sleep(time.Second)
+			os.Exit(EXIT_GENERIC_FAILURE)
+		}
+
+		return count > 0
+
 	} else {
 		mlog.Critical("Failed to check if column exists because of missing driver")
 		time.Sleep(time.Second)
@@ -555,7 +619,15 @@ func (ss *SqlSupplier) CreateColumnIfNotExists(tableName string, columnName stri
 		}
 
 		return true
+	} else if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		_, err := ss.GetMaster().ExecNoTimeout("ALTER TABLE " + tableName + " ADD " + columnName + " " + mySqlColType + " DEFAULT '" + defaultValue + "'")
+		if err != nil {
+			mlog.Critical("Failed to create column", mlog.Err(err))
+			time.Sleep(time.Second)
+			os.Exit(EXIT_CREATE_COLUMN_MYSQL)
+		}
 
+		return true
 	} else {
 		mlog.Critical("Failed to create column because of missing driver")
 		time.Sleep(time.Second)
@@ -590,6 +662,16 @@ func (ss *SqlSupplier) CreateColumnIfNotExistsNoDefault(tableName string, column
 
 		return true
 
+	} else if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		_, err := ss.GetMaster().ExecNoTimeout("ALTER TABLE " + tableName + " ADD " + columnName + " " + mySqlColType)
+		if err != nil {
+			mlog.Critical(fmt.Sprintf("Failed to create column %v", err))
+			time.Sleep(time.Second)
+			os.Exit(EXIT_CREATE_COLUMN_MYSQL)
+		}
+
+		return true
+
 	} else {
 		mlog.Critical("Failed to create column because of missing driver")
 		time.Sleep(time.Second)
@@ -602,6 +684,10 @@ func (ss *SqlSupplier) RemoveColumnIfExists(tableName string, columnName string)
 
 	if !ss.DoesColumnExist(tableName, columnName) {
 		return false
+	}
+
+	if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		return true
 	}
 
 	_, err := ss.GetMaster().ExecNoTimeout("ALTER TABLE " + tableName + " DROP COLUMN " + columnName)
@@ -637,6 +723,8 @@ func (ss *SqlSupplier) RenameColumnIfExists(tableName string, oldColumnName stri
 	var err error
 	if ss.DriverName() == model.DATABASE_DRIVER_MYSQL {
 		_, err = ss.GetMaster().ExecNoTimeout("ALTER TABLE " + tableName + " CHANGE " + oldColumnName + " " + newColumnName + " " + colType)
+	} else if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		_, err = ss.GetMaster().ExecNoTimeout("ALTER TABLE " + tableName + " CHANGE " + oldColumnName + " " + newColumnName + " " + colType)
 	} else if ss.DriverName() == model.DATABASE_DRIVER_POSTGRES {
 		_, err = ss.GetMaster().ExecNoTimeout("ALTER TABLE " + tableName + " RENAME COLUMN " + oldColumnName + " TO " + newColumnName)
 	}
@@ -659,6 +747,8 @@ func (ss *SqlSupplier) GetMaxLengthOfColumnIfExists(tableName string, columnName
 	var err error
 	if ss.DriverName() == model.DATABASE_DRIVER_MYSQL {
 		result, err = ss.GetMaster().SelectStr("SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.columns WHERE table_name = '" + tableName + "' AND COLUMN_NAME = '" + columnName + "'")
+	} else if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		result = "2147483647"
 	} else if ss.DriverName() == model.DATABASE_DRIVER_POSTGRES {
 		result, err = ss.GetMaster().SelectStr("SELECT character_maximum_length FROM information_schema.columns WHERE table_name = '" + strings.ToLower(tableName) + "' AND column_name = '" + strings.ToLower(columnName) + "'")
 	}
@@ -680,6 +770,39 @@ func (ss *SqlSupplier) AlterColumnTypeIfExists(tableName string, columnName stri
 	var err error
 	if ss.DriverName() == model.DATABASE_DRIVER_MYSQL {
 		_, err = ss.GetMaster().ExecNoTimeout("ALTER TABLE " + tableName + " MODIFY " + columnName + " " + mySqlColType)
+	} else if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		createTableQuery, err := ss.GetMaster().SelectStr(`SELECT sql from sqlite_master where type="table" AND name="` + tableName + `"`)
+		if err != nil {
+			mlog.Critical("Failed to alter column type", mlog.Err(err))
+			time.Sleep(time.Second)
+			os.Exit(EXIT_ALTER_COLUMN)
+		}
+		_, err = ss.GetMaster().ExecNoTimeout("ALTER TABLE " + tableName + " RENAME TO tmp")
+		if err != nil {
+			mlog.Critical("Failed to alter column type", mlog.Err(err))
+			time.Sleep(time.Second)
+			os.Exit(EXIT_ALTER_COLUMN)
+		}
+		re := regexp.MustCompile(columnName + " ([^,) ])")
+		createTableQuery = re.ReplaceAllString(createTableQuery, columnName+" "+mySqlColType+"$1")
+		_, err = ss.GetMaster().ExecNoTimeout(createTableQuery)
+		if err != nil {
+			mlog.Critical("Failed to alter column type", mlog.Err(err))
+			time.Sleep(time.Second)
+			os.Exit(EXIT_ALTER_COLUMN)
+		}
+		_, err = ss.GetMaster().ExecNoTimeout("INSERT INTO " + tableName + " SELECT * from tmp")
+		if err != nil {
+			mlog.Critical("Failed to alter column type", mlog.Err(err))
+			time.Sleep(time.Second)
+			os.Exit(EXIT_ALTER_COLUMN)
+		}
+		_, err = ss.GetMaster().ExecNoTimeout("DROP TABLE tmp")
+		if err != nil {
+			mlog.Critical("Failed to alter column type", mlog.Err(err))
+			time.Sleep(time.Second)
+			os.Exit(EXIT_ALTER_COLUMN)
+		}
 	} else if ss.DriverName() == model.DATABASE_DRIVER_POSTGRES {
 		_, err = ss.GetMaster().ExecNoTimeout("ALTER TABLE " + strings.ToLower(tableName) + " ALTER COLUMN " + strings.ToLower(columnName) + " TYPE " + postgresColType)
 	}
@@ -891,6 +1014,10 @@ func IsUniqueConstraintError(err error, indexName []string) bool {
 	}
 
 	if mysqlErr, ok := err.(*mysql.MySQLError); ok && mysqlErr.Number == 1062 {
+		unique = true
+	}
+
+	if sqliteErr, ok := err.(sqlite3.Error); ok && sqliteErr.Code == sqlite3.ErrConstraint {
 		unique = true
 	}
 

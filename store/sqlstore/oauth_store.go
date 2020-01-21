@@ -300,6 +300,8 @@ func (as SqlOAuthStore) deleteOAuthAppSessions(transaction *gorp.Transaction, cl
 		query = "DELETE FROM Sessions s USING OAuthAccessData o WHERE o.Token = s.Token AND o.ClientId = :Id"
 	} else if as.DriverName() == model.DATABASE_DRIVER_MYSQL {
 		query = "DELETE s.* FROM Sessions s INNER JOIN OAuthAccessData o ON o.Token = s.Token WHERE o.ClientId = :Id"
+	} else if as.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		query = "DELETE FROM Sessions WHERE Token IN (SELECT Token from OAuthAccessData WHERE ClientId = :Id)"
 	}
 
 	if _, err := transaction.Exec(query, map[string]interface{}{"Id": clientId}); err != nil {

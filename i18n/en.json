@@ -6595,6 +6595,10 @@
     "translation": "Searching has been disabled on this server. Please contact your System Administrator."
   },
   {
+    "id": "store.sql_post.search.sqlite.app_error",
+    "translation": "Sqlite doesn't support full text searches"
+  },
+  {
     "id": "store.sql_post.update.app_error",
     "translation": "Unable to update the Post"
   },

@@ -83,7 +83,7 @@ func TestChannelStore(t *testing.T, ss store.Store, s SqlSupplier) {
 	t.Run("MaterializedPublicChannels", func(t *testing.T) { testMaterializedPublicChannels(t, ss, s) })
 	t.Run("GetAllChannelsForExportAfter", func(t *testing.T) { testChannelStoreGetAllChannelsForExportAfter(t, ss) })
 	t.Run("GetChannelMembersForExport", func(t *testing.T) { testChannelStoreGetChannelMembersForExport(t, ss) })
-	t.Run("RemoveAllDeactivatedMembers", func(t *testing.T) { testChannelStoreRemoveAllDeactivatedMembers(t, ss) })
+	t.Run("RemoveAllDeactivatedMembers", func(t *testing.T) { testChannelStoreRemoveAllDeactivatedMembers(t, ss, s) })
 	t.Run("ExportAllDirectChannels", func(t *testing.T) { testChannelStoreExportAllDirectChannels(t, ss, s) })
 	t.Run("ExportAllDirectChannelsExcludePrivateAndPublic", func(t *testing.T) { testChannelStoreExportAllDirectChannelsExcludePrivateAndPublic(t, ss, s) })
 	t.Run("ExportAllDirectChannelsDeletedChannel", func(t *testing.T) { testChannelStoreExportAllDirectChannelsDeletedChannel(t, ss, s) })
@@ -218,7 +218,11 @@ func testChannelStoreSaveDirectChannel(t *testing.T, ss store.Store, s SqlSuppli
 	require.Len(t, *members, 1, "should have saved just 1 member")
 
 	// Manually truncate Channels table until testlib can handle cleanups
-	s.GetMaster().Exec("TRUNCATE Channels")
+	if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		s.GetMaster().Exec("DELETE FROM Channels")
+	} else {
+		s.GetMaster().Exec("TRUNCATE Channels")
+	}
 }
 
 func testChannelStoreCreateDirectChannel(t *testing.T, ss store.Store) {
@@ -412,7 +416,11 @@ func testChannelStoreGet(t *testing.T, ss store.Store, s SqlSupplier) {
 	require.Greater(t, len(*channelsTeam), 0, "too little")
 
 	// Manually truncate Channels table until testlib can handle cleanups
-	s.GetMaster().Exec("TRUNCATE Channels")
+	if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		s.GetMaster().Exec("DELETE FROM Channels")
+	} else {
+		s.GetMaster().Exec("TRUNCATE Channels")
+	}
 }
 
 func testChannelStoreGetChannelsByIds(t *testing.T, ss store.Store) {
@@ -1106,7 +1114,11 @@ func testChannelStoreGetAllChannels(t *testing.T, ss store.Store, s SqlSupplier)
 	assert.Len(t, *list, 1)
 
 	// Manually truncate Channels table until testlib can handle cleanups
-	s.GetMaster().Exec("TRUNCATE Channels")
+	if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		s.GetMaster().Exec("DELETE FROM Channels")
+	} else {
+		s.GetMaster().Exec("TRUNCATE Channels")
+	}
 }
 
 func testChannelStoreGetMoreChannels(t *testing.T, ss store.Store) {
@@ -2210,6 +2222,10 @@ func testGetGuestCount(t *testing.T, ss store.Store) {
 }
 
 func testChannelStoreSearchMore(t *testing.T, ss store.Store) {
+	if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		t.Skip("Skipping for sqlite")
+	}
+
 	teamId := model.NewId()
 	otherTeamId := model.NewId()
 
@@ -2379,6 +2395,10 @@ func (s ByChannelDisplayName) Less(i, j int) bool {
 }
 
 func testChannelStoreSearchInTeam(t *testing.T, ss store.Store) {
+	if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		t.Skip("Skipping for sqlite")
+	}
+
 	teamId := model.NewId()
 	otherTeamId := model.NewId()
 
@@ -2570,6 +2590,10 @@ func testChannelStoreSearchInTeam(t *testing.T, ss store.Store) {
 }
 
 func testChannelStoreSearchForUserInTeam(t *testing.T, ss store.Store) {
+	if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		t.Skip("Skipping for sqlite")
+	}
+
 	userId := model.NewId()
 	teamId := model.NewId()
 	otherTeamId := model.NewId()
@@ -2676,6 +2700,10 @@ func testChannelStoreSearchForUserInTeam(t *testing.T, ss store.Store) {
 }
 
 func testChannelStoreSearchAllChannels(t *testing.T, ss store.Store) {
+	if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		t.Skip("Skipping for sqlite")
+	}
+
 	cleanupChannels(t, ss)
 
 	t1 := model.Team{}
@@ -2894,6 +2922,10 @@ func testChannelStoreSearchAllChannels(t *testing.T, ss store.Store) {
 }
 
 func testChannelStoreAutocompleteInTeamForSearch(t *testing.T, ss store.Store, s SqlSupplier) {
+	if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		t.Skip("Skipping for sqlite")
+	}
+
 	u1 := &model.User{}
 	u1.Email = MakeEmail()
 	u1.Username = "user1" + model.NewId()
@@ -3023,7 +3055,11 @@ func testChannelStoreAutocompleteInTeamForSearch(t *testing.T, ss store.Store, s
 	}
 
 	// Manually truncate Channels table until testlib can handle cleanups
-	s.GetMaster().Exec("TRUNCATE Channels")
+	if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		s.GetMaster().Exec("DELETE FROM Channels")
+	} else {
+		s.GetMaster().Exec("TRUNCATE Channels")
+	}
 }
 
 func testChannelStoreGetMembersByIds(t *testing.T, ss store.Store) {
@@ -3060,6 +3096,10 @@ func testChannelStoreGetMembersByIds(t *testing.T, ss store.Store) {
 }
 
 func testChannelStoreSearchGroupChannels(t *testing.T, ss store.Store) {
+	if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		t.Skip("Skipping for sqlite")
+	}
+
 	// Users
 	u1 := &model.User{}
 	u1.Username = "user.one"
@@ -3903,7 +3943,7 @@ func testChannelStoreGetChannelMembersForExport(t *testing.T, ss store.Store) {
 	assert.Equal(t, u1.Id, cmfe1.UserId)
 }
 
-func testChannelStoreRemoveAllDeactivatedMembers(t *testing.T, ss store.Store) {
+func testChannelStoreRemoveAllDeactivatedMembers(t *testing.T, ss store.Store, s SqlSupplier) {
 	// Set up all the objects needed in the store.
 	t1 := model.Team{}
 	t1.DisplayName = "Name"
@@ -3981,6 +4021,13 @@ func testChannelStoreRemoveAllDeactivatedMembers(t *testing.T, ss store.Store) {
 	assert.Nil(t, err)
 	assert.Len(t, *d2, 1)
 	assert.Equal(t, u3.Id, (*d2)[0].UserId)
+
+	// Manually truncate Channels table until testlib can handle cleanups
+	if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		s.GetMaster().Exec("DELETE FROM Channels")
+	} else {
+		s.GetMaster().Exec("TRUNCATE Channels")
+	}
 }
 
 func testChannelStoreExportAllDirectChannels(t *testing.T, ss store.Store, s SqlSupplier) {
@@ -4030,6 +4077,8 @@ func testChannelStoreExportAllDirectChannels(t *testing.T, ss store.Store, s Sql
 
 	ss.Channel().SaveDirectChannel(&o1, &m1, &m2)
 
+	time.Sleep(time.Millisecond)
+
 	d1, err := ss.Channel().GetAllDirectChannelsForExportAfter(10000, strings.Repeat("0", 26))
 	assert.Nil(t, err)
 
@@ -4037,7 +4086,11 @@ func testChannelStoreExportAllDirectChannels(t *testing.T, ss store.Store, s Sql
 	assert.ElementsMatch(t, []string{o1.DisplayName, o2.DisplayName}, []string{d1[0].DisplayName, d1[1].DisplayName})
 
 	// Manually truncate Channels table until testlib can handle cleanups
-	s.GetMaster().Exec("TRUNCATE Channels")
+	if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		s.GetMaster().Exec("DELETE FROM Channels")
+	} else {
+		s.GetMaster().Exec("TRUNCATE Channels")
+	}
 }
 
 func testChannelStoreExportAllDirectChannelsExcludePrivateAndPublic(t *testing.T, ss store.Store, s SqlSupplier) {
@@ -4099,7 +4152,11 @@ func testChannelStoreExportAllDirectChannelsExcludePrivateAndPublic(t *testing.T
 	assert.Equal(t, o1.DisplayName, d1[0].DisplayName)
 
 	// Manually truncate Channels table until testlib can handle cleanups
-	s.GetMaster().Exec("TRUNCATE Channels")
+	if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		s.GetMaster().Exec("DELETE FROM Channels")
+	} else {
+		s.GetMaster().Exec("TRUNCATE Channels")
+	}
 }
 
 func testChannelStoreExportAllDirectChannelsDeletedChannel(t *testing.T, ss store.Store, s SqlSupplier) {
@@ -4149,7 +4206,11 @@ func testChannelStoreExportAllDirectChannelsDeletedChannel(t *testing.T, ss stor
 	assert.Equal(t, 0, len(d1))
 
 	// Manually truncate Channels table until testlib can handle cleanups
-	s.GetMaster().Exec("TRUNCATE Channels")
+	if ss.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		s.GetMaster().Exec("DELETE FROM Channels")
+	} else {
+		s.GetMaster().Exec("TRUNCATE Channels")
+	}
 }
 
 func testChannelStoreGetChannelsBatchForIndexing(t *testing.T, ss store.Store) {

@@ -94,6 +94,7 @@ func (s *SqlPostStore) Save(post *model.Post) (*model.Post, *model.AppError) {
 		if _, err := s.GetMaster().Exec("UPDATE Channels SET LastPostAt = GREATEST(:LastPostAt, LastPostAt), TotalMsgCount = TotalMsgCount + 1 WHERE Id = :ChannelId", map[string]interface{}{"LastPostAt": time, "ChannelId": post.ChannelId}); err != nil {
 			mlog.Error("Error updating Channel LastPostAt.", mlog.Err(err))
 		}
+
 	} else {
 		// don't update TotalMsgCount for unimportant messages so that the channel isn't marked as unread
 		if _, err := s.GetMaster().Exec("UPDATE Channels SET LastPostAt = :LastPostAt WHERE Id = :ChannelId AND LastPostAt < :LastPostAt", map[string]interface{}{"LastPostAt": time, "ChannelId": post.ChannelId}); err != nil {
@@ -1038,6 +1039,8 @@ func (s *SqlPostStore) Search(teamId string, userId string, params *model.Search
 			}
 			queryParams["Terms"] = strings.Join(splitTerms, " ") + excludeClause
 		}
+	} else if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		return nil, model.NewAppError("SqlPostStore.Search", "store.sql_post.search.sqlite.app_error", nil, "", http.StatusInternalServerError)
 	}
 
 	_, err := s.GetSearchReplica().Select(&posts, searchQuery, queryParams)
@@ -1067,11 +1070,20 @@ func (s *SqlPostStore) Search(teamId string, userId string, params *model.Search
 }
 
 func (s *SqlPostStore) AnalyticsUserCountsWithPostsByDay(teamId string) (model.AnalyticsRows, *model.AppError) {
-	query :=
-		`SELECT DISTINCT
-		        DATE(FROM_UNIXTIME(Posts.CreateAt / 1000)) AS Name,
-		        COUNT(DISTINCT Posts.UserId) AS Value
-		FROM Posts`
+	var query string
+	if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		query =
+			`SELECT DISTINCT
+					DATE(Posts.CreateAt / 1000, 'unixepoch') AS Name,
+					COUNT(DISTINCT Posts.UserId) AS Value
+			FROM Posts`
+	} else {
+		query =
+			`SELECT DISTINCT
+					DATE(FROM_UNIXTIME(Posts.CreateAt / 1000)) AS Name,
+					COUNT(DISTINCT Posts.UserId) AS Value
+			FROM Posts`
+	}
 
 	if len(teamId) > 0 {
 		query += " INNER JOIN Channels ON Posts.ChannelId = Channels.Id AND Channels.TeamId = :TeamId AND"
@@ -1079,10 +1091,17 @@ func (s *SqlPostStore) AnalyticsUserCountsWithPostsByDay(teamId string) (model.A
 		query += " WHERE"
 	}
 
-	query += ` Posts.CreateAt >= :StartTime AND Posts.CreateAt <= :EndTime
+	if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		query += ` Posts.CreateAt >= :StartTime AND Posts.CreateAt <= :EndTime
+		GROUP BY DATE(Posts.CreateAt / 1000, 'unixepoch')
+		ORDER BY Name DESC
+		LIMIT 30`
+	} else {
+		query += ` Posts.CreateAt >= :StartTime AND Posts.CreateAt <= :EndTime
 		GROUP BY DATE(FROM_UNIXTIME(Posts.CreateAt / 1000))
 		ORDER BY Name DESC
 		LIMIT 30`
+	}
 
 	if s.DriverName() == model.DATABASE_DRIVER_POSTGRES {
 		query =
@@ -1117,12 +1136,20 @@ func (s *SqlPostStore) AnalyticsUserCountsWithPostsByDay(teamId string) (model.A
 }
 
 func (s *SqlPostStore) AnalyticsPostCountsByDay(options *model.AnalyticsPostCountsOptions) (model.AnalyticsRows, *model.AppError) {
-
-	query :=
-		`SELECT
-		        DATE(FROM_UNIXTIME(Posts.CreateAt / 1000)) AS Name,
-		        COUNT(Posts.Id) AS Value
-		    FROM Posts`
+	var query string
+	if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		query =
+			`SELECT
+					DATE(Posts.CreateAt / 1000, 'unixepoch') AS Name,
+					COUNT(Posts.Id) AS Value
+				FROM Posts`
+	} else {
+		query =
+			`SELECT
+					DATE(FROM_UNIXTIME(Posts.CreateAt / 1000)) AS Name,
+					COUNT(Posts.Id) AS Value
+				FROM Posts`
+	}
 
 	if options.BotsOnly {
 		query += " INNER JOIN Bots ON Posts.UserId = Bots.Userid"
@@ -1134,11 +1161,19 @@ func (s *SqlPostStore) AnalyticsPostCountsByDay(options *model.AnalyticsPostCoun
 		query += " WHERE"
 	}
 
-	query += ` Posts.CreateAt <= :EndTime
-		            AND Posts.CreateAt >= :StartTime
-		GROUP BY DATE(FROM_UNIXTIME(Posts.CreateAt / 1000))
-		ORDER BY Name DESC
-		LIMIT 30`
+	if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		query += ` Posts.CreateAt <= :EndTime
+						AND Posts.CreateAt >= :StartTime
+			GROUP BY DATE(Posts.CreateAt / 1000, 'unixepoch')
+			ORDER BY Name DESC
+			LIMIT 30`
+	} else {
+		query += ` Posts.CreateAt <= :EndTime
+						AND Posts.CreateAt >= :StartTime
+			GROUP BY DATE(FROM_UNIXTIME(Posts.CreateAt / 1000))
+			ORDER BY Name DESC
+			LIMIT 30`
+	}
 
 	if s.DriverName() == model.DATABASE_DRIVER_POSTGRES {
 		query =
@@ -1276,8 +1311,10 @@ func (s *SqlPostStore) GetPostsBatchForIndexing(startTime int64, endTime int64, 
 
 func (s *SqlPostStore) PermanentDeleteBatch(endTime int64, limit int64) (int64, *model.AppError) {
 	var query string
-	if s.DriverName() == "postgres" {
+	if s.DriverName() == model.DATABASE_DRIVER_POSTGRES {
 		query = "DELETE from Posts WHERE Id = any (array (SELECT Id FROM Posts WHERE CreateAt < :EndTime LIMIT :Limit))"
+	} else if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		query = "DELETE from Posts WHERE Id IN (SELECT Id FROM Posts WHERE CreateAt < :EndTime LIMIT :Limit)"
 	} else {
 		query = "DELETE from Posts WHERE CreateAt < :EndTime LIMIT :Limit"
 	}
@@ -1337,6 +1374,9 @@ func (s *SqlPostStore) determineMaxPostSize() int {
 		`); err != nil {
 			mlog.Error("Unable to determine the maximum supported post size", mlog.Err(err))
 		}
+	} else if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		// Hardcoded value because is only for testing purposes
+		return 16383
 	} else {
 		mlog.Warn("No implementation found to determine the maximum supported post size")
 	}

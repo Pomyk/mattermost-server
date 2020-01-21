@@ -242,6 +242,8 @@ func (me SqlSessionStore) Cleanup(expiryTime int64, batchSize int64) {
 	var query string
 	if me.DriverName() == model.DATABASE_DRIVER_POSTGRES {
 		query = "DELETE FROM Sessions WHERE Id = any (array (SELECT Id FROM Sessions WHERE ExpiresAt != 0 AND :ExpiresAt > ExpiresAt LIMIT :Limit))"
+	} else if me.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		query = "DELETE FROM Sessions WHERE Id IN (SELECT Id FROM Sessions WHERE ExpiresAt != 0 AND :ExpiresAt > ExpiresAt LIMIT :Limit)"
 	} else {
 		query = "DELETE FROM Sessions WHERE ExpiresAt != 0 AND :ExpiresAt > ExpiresAt LIMIT :Limit"
 	}

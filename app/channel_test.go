@@ -8,11 +8,13 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/mattermost/mattermost-server/v5/model"
+	"github.com/mattermost/mattermost-server/v5/testlib"
 )
 
 func TestPermanentDeleteChannel(t *testing.T) {
@@ -369,6 +371,8 @@ func TestAddUserToChannelCreatesChannelMemberHistoryRecord(t *testing.T) {
 	_, err := th.App.AddTeamMember(th.BasicTeam.Id, user.Id)
 	require.Nil(t, err, "Failed to add user to team.")
 
+	time.Sleep(time.Millisecond)
+
 	groupUserIds := make([]string, 0)
 	groupUserIds = append(groupUserIds, th.BasicUser.Id)
 	groupUserIds = append(groupUserIds, user.Id)
@@ -454,12 +458,16 @@ func TestLeaveLastChannel(t *testing.T) {
 	th.AddUserToChannel(guest, townSquare)
 	th.AddUserToChannel(guest, th.BasicChannel)
 
+	time.Sleep(time.Millisecond)
+
 	t.Run("Guest leaves not last channel", func(t *testing.T) {
 		err = th.App.LeaveChannel(townSquare.Id, guest.Id)
 		require.Nil(t, err)
 		_, err = th.App.GetTeamMember(th.BasicTeam.Id, guest.Id)
 		assert.Nil(t, err, "It should maintain the team membership")
 	})
+
+	time.Sleep(time.Millisecond)
 
 	t.Run("Guest leaves last channel", func(t *testing.T) {
 		err = th.App.LeaveChannel(th.BasicChannel.Id, guest.Id)
@@ -969,6 +977,10 @@ func TestDefaultChannelNames(t *testing.T) {
 }
 
 func TestSearchChannelsForUser(t *testing.T) {
+	if testlib.TEST_DRIVER_NAME == model.DATABASE_DRIVER_SQLITE {
+		t.Skip("skiping the test for sqlite")
+	}
+
 	th := Setup(t).InitBasic()
 	defer th.TearDown()
 

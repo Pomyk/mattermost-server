@@ -17,6 +17,7 @@ import (
 	"github.com/mattermost/mattermost-server/v5/model"
 	"github.com/mattermost/mattermost-server/v5/plugin/plugintest/mock"
 	"github.com/mattermost/mattermost-server/v5/store/storetest"
+	"github.com/mattermost/mattermost-server/v5/testlib"
 )
 
 func TestCreatePostDeduplicate(t *testing.T) {
@@ -755,6 +756,9 @@ func TestUpdatePost(t *testing.T) {
 }
 
 func TestSearchPostsInTeamForUser(t *testing.T) {
+	if testlib.TEST_DRIVER_NAME == model.DATABASE_DRIVER_SQLITE {
+		t.Skip("skiping the test for sqlite")
+	}
 	perPage := 5
 	searchTerm := "searchTerm"
 

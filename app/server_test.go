@@ -6,7 +6,6 @@ package app
 import (
 	"bufio"
 	"crypto/tls"
-	"github.com/mattermost/mattermost-server/v5/mlog"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -17,8 +16,10 @@ import (
 	"testing"
 
 	"github.com/mattermost/mattermost-server/v5/config"
+	"github.com/mattermost/mattermost-server/v5/mlog"
 	"github.com/mattermost/mattermost-server/v5/model"
 	"github.com/mattermost/mattermost-server/v5/utils/fileutils"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -173,6 +174,7 @@ func TestStartServerTLSOverwriteCipher(t *testing.T) {
 	client := &http.Client{Transport: tr}
 	err = checkEndpoint(t, client, "https://localhost:"+strconv.Itoa(s.ListenAddr.Port)+"/", http.StatusNotFound)
 	require.Error(t, err, "Expected error due to Cipher mismatch")
+
 	if !strings.Contains(err.Error(), "remote error: tls: handshake failure") {
 		t.Errorf("Expected protocol version error, got %s", err)
 	}

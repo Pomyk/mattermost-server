@@ -285,7 +285,9 @@ func (s SqlTeamStore) GetByName(name string) (*model.Team, *model.AppError) {
 func (s SqlTeamStore) SearchAll(term string) ([]*model.Team, *model.AppError) {
 	var teams []*model.Team
 
-	term = sanitizeSearchTerm(term, "\\")
+	if s.DriverName() != model.DATABASE_DRIVER_SQLITE {
+		term = sanitizeSearchTerm(term, "\\")
+	}
 
 	if _, err := s.GetReplica().Select(&teams, "SELECT * FROM Teams WHERE Name LIKE :Term OR DisplayName LIKE :Term", map[string]interface{}{"Term": term + "%"}); err != nil {
 		return nil, model.NewAppError("SqlTeamStore.SearchAll", "store.sql_team.search_all_team.app_error", nil, "term="+term+", "+err.Error(), http.StatusInternalServerError)
@@ -317,7 +319,9 @@ func (s SqlTeamStore) SearchAllPaged(term string, page int, perPage int) ([]*mod
 func (s SqlTeamStore) SearchOpen(term string) ([]*model.Team, *model.AppError) {
 	var teams []*model.Team
 
-	term = sanitizeSearchTerm(term, "\\")
+	if s.DriverName() != model.DATABASE_DRIVER_SQLITE {
+		term = sanitizeSearchTerm(term, "\\")
+	}
 
 	if _, err := s.GetReplica().Select(&teams, "SELECT * FROM Teams WHERE Type = 'O' AND AllowOpenInvite = true AND (Name LIKE :Term OR DisplayName LIKE :Term)", map[string]interface{}{"Term": term + "%"}); err != nil {
 		return nil, model.NewAppError("SqlTeamStore.SearchOpen", "store.sql_team.search_open_team.app_error", nil, "term="+term+", "+err.Error(), http.StatusInternalServerError)
@@ -329,7 +333,9 @@ func (s SqlTeamStore) SearchOpen(term string) ([]*model.Team, *model.AppError) {
 func (s SqlTeamStore) SearchPrivate(term string) ([]*model.Team, *model.AppError) {
 	var teams []*model.Team
 
-	term = sanitizeSearchTerm(term, "\\")
+	if s.DriverName() != model.DATABASE_DRIVER_SQLITE {
+		term = sanitizeSearchTerm(term, "\\")
+	}
 
 	query :=
 		`SELECT *

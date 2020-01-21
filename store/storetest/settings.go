@@ -62,6 +62,13 @@ func MySQLSettings() *model.SqlSettings {
 	return databaseSettings("mysql", cfg.FormatDSN())
 }
 
+// SqliteSettings returns the database settings to connect to the Sqlite unittesting database.
+// The database name is always :memory: because we want to run the database in memory
+func SqliteSettings() *model.SqlSettings {
+	dbname := fmt.Sprintf("file:%s?mode=memory&cache=shared&sync=1", model.NewId())
+	return databaseSettings("sqlite3", dbname)
+}
+
 // PostgresSQLSettings returns the database settings to connect to the PostgreSQL unittesting database.
 // The database name is generated randomly and must be created before use.
 func PostgreSQLSettings() *model.SqlSettings {
@@ -186,6 +193,8 @@ func MakeSqlSettings(driver string) *model.SqlSettings {
 	case model.DATABASE_DRIVER_POSTGRES:
 		settings = PostgreSQLSettings()
 		dbName = postgreSQLDSNDatabase(*settings.DataSource)
+	case model.DATABASE_DRIVER_SQLITE:
+		return SqliteSettings()
 	default:
 		panic("unsupported driver " + driver)
 	}
@@ -221,6 +230,8 @@ func CleanupSqlSettings(settings *model.SqlSettings) {
 		dbName = mySQLDSNDatabase(*settings.DataSource)
 	case model.DATABASE_DRIVER_POSTGRES:
 		dbName = postgreSQLDSNDatabase(*settings.DataSource)
+	case model.DATABASE_DRIVER_SQLITE:
+		return
 	default:
 		panic("unsupported driver " + driver)
 	}

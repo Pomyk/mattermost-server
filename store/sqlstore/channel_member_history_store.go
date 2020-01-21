@@ -170,6 +170,15 @@ func (s SqlChannelMemberHistoryStore) PermanentDeleteBatch(endTime int64, limit 
 					AND LeaveTime <= :EndTime
 					LIMIT :Limit
 				);`
+	} else if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		query =
+			`DELETE FROM ChannelMemberHistory
+				 WHERE rowid IN (
+					SELECT rowid FROM ChannelMemberHistory
+					WHERE LeaveTime IS NOT NULL
+					AND LeaveTime <= :EndTime
+					LIMIT :Limit
+				);`
 	} else {
 		query =
 			`DELETE FROM ChannelMemberHistory

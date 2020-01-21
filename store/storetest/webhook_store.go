@@ -340,6 +340,8 @@ func testWebhookStoreGetOutgoingList(t *testing.T, ss store.Store) {
 
 	o1, _ = ss.Webhook().SaveOutgoing(o1)
 
+	time.Sleep(time.Millisecond)
+
 	o2 := &model.OutgoingWebhook{}
 	o2.ChannelId = model.NewId()
 	o2.CreatorId = model.NewId()

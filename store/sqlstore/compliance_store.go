@@ -4,6 +4,7 @@
 package sqlstore
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -122,8 +123,7 @@ func (s SqlComplianceStore) ComplianceExport(job *model.Compliance) ([]*model.Co
 		emailQuery += ")"
 	}
 
-	query :=
-		`(SELECT
+	query1 := `SELECT
 			Teams.Name AS TeamName,
 			Teams.DisplayName AS TeamDisplayName,
 			Channels.Name AS ChannelName,
@@ -157,10 +157,11 @@ func (s SqlComplianceStore) ComplianceExport(job *model.Compliance) ([]*model.Co
 				AND Posts.UserId = Users.Id
 				AND Posts.CreateAt > :StartTime
 				AND Posts.CreateAt <= :EndTime
-				` + emailQuery + `
-				` + keywordQuery + `)
-		UNION ALL
-		(SELECT
+				%s
+				%s`
+	query1 = fmt.Sprintf(query1, emailQuery, keywordQuery)
+
+	query2 := `SELECT
 			'direct-messages' AS TeamName,
 			'Direct Messages' AS TeamDisplayName,
 			Channels.Name AS ChannelName,
@@ -193,10 +194,15 @@ func (s SqlComplianceStore) ComplianceExport(job *model.Compliance) ([]*model.Co
 				AND Posts.UserId = Users.Id
 				AND Posts.CreateAt > :StartTime
 				AND Posts.CreateAt <= :EndTime
-				` + emailQuery + `
-				` + keywordQuery + `)
-		ORDER BY PostCreateAt
-		LIMIT 30000`
+				%s
+				%s`
+	query2 = fmt.Sprintf(query2, emailQuery, keywordQuery)
+	var query string
+	if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		query = fmt.Sprintf(`SELECT * FROM (%s UNION ALL %s) ORDER BY PostCreateAt LIMIT 30000`, query1, query2)
+	} else {
+		query = fmt.Sprintf(`(%s) UNION ALL (%s) ORDER BY PostCreateAt LIMIT 30000`, query1, query2)
+	}
 
 	var cposts []*model.CompliancePost
 

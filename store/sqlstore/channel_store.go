@@ -569,9 +569,16 @@ func (s SqlChannelStore) saveChannelT(transaction *gorp.Transaction, channel *mo
 	}
 
 	if err := transaction.Insert(channel); err != nil {
-		if IsUniqueConstraintError(err, []string{"Name", "channels_name_teamid_key"}) {
+		if IsUniqueConstraintError(err, []string{"Channels.Name, Channels.TeamId", "Name", "channels_name_teamid_key"}) {
 			dupChannel := model.Channel{}
-			s.GetMaster().SelectOne(&dupChannel, "SELECT * FROM Channels WHERE TeamId = :TeamId AND Name = :Name", map[string]interface{}{"TeamId": channel.TeamId, "Name": channel.Name})
+			if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
+				transaction.SelectOne(&dupChannel, "SELECT * FROM Channels WHERE TeamId = :TeamId AND Name = :Name", map[string]interface{}{"TeamId": channel.TeamId, "Name": channel.Name})
+			} else {
+				s.GetMaster().SelectOne(&dupChannel, "SELECT * FROM Channels WHERE TeamId = :TeamId AND Name = :Name", map[string]interface{}{"TeamId": channel.TeamId, "Name": channel.Name})
+			}
+			if dupChannel.DeleteAt > 0 {
+				return nil, model.NewAppError("SqlChannelStore.Save", "store.sql_channel.save_channel.previously.app_error", nil, "id="+channel.Id+", "+err.Error(), http.StatusBadRequest)
+			}
 			return &dupChannel, model.NewAppError("SqlChannelStore.Save", store.CHANNEL_EXISTS_ERROR, nil, "id="+channel.Id+", "+err.Error(), http.StatusBadRequest)
 		}
 		return nil, model.NewAppError("SqlChannelStore.Save", "store.sql_channel.save_channel.save.app_error", nil, "id="+channel.Id+", "+err.Error(), http.StatusInternalServerError)
@@ -618,7 +625,11 @@ func (s SqlChannelStore) updateChannelT(transaction *gorp.Transaction, channel *
 	if err != nil {
 		if IsUniqueConstraintError(err, []string{"Name", "channels_name_teamid_key"}) {
 			dupChannel := model.Channel{}
-			s.GetReplica().SelectOne(&dupChannel, "SELECT * FROM Channels WHERE TeamId = :TeamId AND Name= :Name AND DeleteAt > 0", map[string]interface{}{"TeamId": channel.TeamId, "Name": channel.Name})
+			if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
+				transaction.SelectOne(&dupChannel, "SELECT * FROM Channels WHERE TeamId = :TeamId AND Name= :Name AND DeleteAt > 0", map[string]interface{}{"TeamId": channel.TeamId, "Name": channel.Name})
+			} else {
+				s.GetReplica().SelectOne(&dupChannel, "SELECT * FROM Channels WHERE TeamId = :TeamId AND Name= :Name AND DeleteAt > 0", map[string]interface{}{"TeamId": channel.TeamId, "Name": channel.Name})
+			}
 			if dupChannel.DeleteAt > 0 {
 				return nil, model.NewAppError("SqlChannelStore.Update", "store.sql_channel.update.previously.app_error", nil, "id="+channel.Id+", "+err.Error(), http.StatusBadRequest)
 			}
@@ -1711,11 +1722,19 @@ func (s SqlChannelStore) UpdateLastViewedAt(channelIds []string, userId string) 
 	for index, t := range lastPostAtTimes {
 		times[t.Id] = t.LastPostAt
 
-		props["msgCount"+strconv.Itoa(index)] = t.TotalMsgCount
-		msgCountQuery += fmt.Sprintf("WHEN :channelId%d THEN GREATEST(MsgCount, :msgCount%d) ", index, index)
+		if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
+			props["msgCount"+strconv.Itoa(index)] = t.TotalMsgCount
+			msgCountQuery += fmt.Sprintf("WHEN :channelId%d THEN MAX(MsgCount, :msgCount%d) ", index, index)
 
-		props["lastViewed"+strconv.Itoa(index)] = t.LastPostAt
-		lastViewedQuery += fmt.Sprintf("WHEN :channelId%d THEN GREATEST(LastViewedAt, :lastViewed%d) ", index, index)
+			props["lastViewed"+strconv.Itoa(index)] = t.LastPostAt
+			lastViewedQuery += fmt.Sprintf("WHEN :channelId%d THEN MAX(LastViewedAt, :lastViewed%d) ", index, index)
+		} else {
+			props["msgCount"+strconv.Itoa(index)] = t.TotalMsgCount
+			msgCountQuery += fmt.Sprintf("WHEN :channelId%d THEN GREATEST(MsgCount, :msgCount%d) ", index, index)
+
+			props["lastViewed"+strconv.Itoa(index)] = t.LastPostAt
+			lastViewedQuery += fmt.Sprintf("WHEN :channelId%d THEN GREATEST(LastViewedAt, :lastViewed%d) ", index, index)
+		}
 
 		props["channelId"+strconv.Itoa(index)] = t.Id
 	}
@@ -1955,6 +1974,10 @@ func (s SqlChannelStore) GetMembersForUserWithPagination(teamId, userId string, 
 }
 
 func (s SqlChannelStore) AutocompleteInTeam(teamId string, term string, includeDeleted bool) (*model.ChannelList, *model.AppError) {
+	if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		return nil, model.NewAppError("SqlChannelStore.AutocompleteInTeam", "store.sql_channel.autocomplete_in_team.sqlite.app_error", nil, "", http.StatusInternalServerError)
+	}
+
 	deleteFilter := "AND c.DeleteAt = 0"
 	if includeDeleted {
 		deleteFilter = ""
@@ -1999,6 +2022,9 @@ func (s SqlChannelStore) AutocompleteInTeam(teamId string, term string, includeD
 }
 
 func (s SqlChannelStore) AutocompleteInTeamForSearch(teamId string, userId string, term string, includeDeleted bool) (*model.ChannelList, *model.AppError) {
+	if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		return nil, model.NewAppError("SqlChannelStore.AutocompleteInTeamForSearch", "store.sql_channel.autocomplete_in_team_for_search.sqlite.app_error", nil, "", http.StatusInternalServerError)
+	}
 	deleteFilter := "AND DeleteAt = 0"
 	if includeDeleted {
 		deleteFilter = ""
@@ -2371,21 +2397,38 @@ func (s SqlChannelStore) buildFulltextClause(term string, searchColumns string) 
 		fulltextTerm = strings.Join(splitTerm, " ")
 
 		fulltextClause = fmt.Sprintf("MATCH(%s) AGAINST (:FulltextTerm IN BOOLEAN MODE)", searchColumns)
+	} else if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		splitTerm := strings.Fields(fulltextTerm)
+		for i, t := range strings.Fields(fulltextTerm) {
+			splitTerm[i] = "+" + t + "*"
+		}
+
+		fulltextTerm = strings.Join(splitTerm, " ")
+
+		fulltextClause = ""
 	}
 
 	return
 }
 
 func (s SqlChannelStore) performSearch(searchQuery string, term string, parameters map[string]interface{}) (*model.ChannelList, *model.AppError) {
+	if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
+		return nil, model.NewAppError("SqlChannelStore.performSearch", "store.sql_channel.perform_search.sqlite.app_error", nil, "", http.StatusInternalServerError)
+	}
+
 	likeClause, likeTerm := s.buildLIKEClause(term, "c.Name, c.DisplayName, c.Purpose")
 	if likeTerm == "" {
 		// If the likeTerm is empty after preparing, then don't bother searching.
 		searchQuery = strings.Replace(searchQuery, "SEARCH_CLAUSE", "", 1)
 	} else {
 		parameters["LikeTerm"] = likeTerm
-		fulltextClause, fulltextTerm := s.buildFulltextClause(term, "c.Name, c.DisplayName, c.Purpose")
-		parameters["FulltextTerm"] = fulltextTerm
-		searchQuery = strings.Replace(searchQuery, "SEARCH_CLAUSE", "AND ("+likeClause+" OR "+fulltextClause+")", 1)
+		if s.DriverName() == model.DATABASE_DRIVER_SQLITE {
+			searchQuery = strings.Replace(searchQuery, "SEARCH_CLAUSE", "AND "+likeClause, 1)
+		} else {
+			fulltextClause, fulltextTerm := s.buildFulltextClause(term, "c.Name, c.DisplayName, c.Purpose")
+			parameters["FulltextTerm"] = fulltextTerm
+			searchQuery = strings.Replace(searchQuery, "SEARCH_CLAUSE", "AND ("+likeClause+" OR "+fulltextClause+")", 1)
+		}
 	}
 
 	var channels model.ChannelList
@@ -2500,6 +2543,10 @@ func (s SqlChannelStore) GetMembersByIds(channelId string, userIds []string) (*m
 	var dbMembers channelMemberWithSchemeRolesList
 	props := make(map[string]interface{})
 	idQuery := ""
+
+	if len(userIds) == 0 {
+		return nil, model.NewAppError("SqlChannelStore.GetMembersByIds", "store.sql_channel.get_members_by_ids.app_error", nil, "channelId="+channelId, http.StatusBadRequest)
+	}
 
 	for index, userId := range userIds {
 		if len(idQuery) > 0 {

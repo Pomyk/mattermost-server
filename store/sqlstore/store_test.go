@@ -56,6 +56,10 @@ func initStores() {
 		Name:        "PostgreSQL",
 		SqlSettings: storetest.MakeSqlSettings(model.DATABASE_DRIVER_POSTGRES),
 	})
+	storeTypes = append(storeTypes, &storeType{
+		Name:        "Sqlite",
+		SqlSettings: storetest.MakeSqlSettings(model.DATABASE_DRIVER_SQLITE),
+	})
 
 	defer func() {
 		if err := recover(); err != nil {

@@ -82,6 +82,7 @@ func (s *Store) Close()                                { /* do nothing */ }
 func (s *Store) LockToMaster()                         { /* do nothing */ }
 func (s *Store) UnlockFromMaster()                     { /* do nothing */ }
 func (s *Store) DropAllTables()                        { /* do nothing */ }
+func (s *Store) DriverName() string                    { return "mock" }
 func (s *Store) TotalMasterDbConnections() int         { return 1 }
 func (s *Store) TotalReadDbConnections() int           { return 1 }
 func (s *Store) TotalSearchDbConnections() int         { return 1 }

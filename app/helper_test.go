@@ -163,6 +163,7 @@ func (me *TestHelper) CreateGuest() *model.User {
 }
 
 func (me *TestHelper) CreateUserOrGuest(guest bool) *model.User {
+	time.Sleep(time.Millisecond)
 	id := model.NewId()
 
 	user := &model.User{

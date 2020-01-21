@@ -420,6 +420,7 @@ func TestPreparePostForClient(t *testing.T) {
 
 		clientPost := th.App.PreparePostForClient(post, false, false)
 		firstEmbed := clientPost.Metadata.Embeds[0]
+		require.NotNil(t, firstEmbed.Data)
 		ogData := firstEmbed.Data.(*opengraph.OpenGraph)
 
 		t.Run("populates embeds", func(t *testing.T) {
