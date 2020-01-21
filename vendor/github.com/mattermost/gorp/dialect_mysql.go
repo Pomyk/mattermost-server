@@ -136,7 +136,7 @@ func (m MySQLDialect) DropIndexSuffix() string {
 }
 
 func (m MySQLDialect) TruncateClause() string {
-	return "truncate"
+	return "delete from"
 }
 
 // Returns "?"
