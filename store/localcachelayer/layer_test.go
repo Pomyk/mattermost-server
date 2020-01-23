@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/mattermost/mattermost-server/v5/model"
+	"github.com/mattermost/mattermost-server/v5/services/cache/lru"
 	"github.com/mattermost/mattermost-server/v5/store"
 	"github.com/mattermost/mattermost-server/v5/store/sqlstore"
 	"github.com/mattermost/mattermost-server/v5/store/storetest"
@@ -101,7 +102,7 @@ func initStores() {
 	}
 	for _, st := range benchmarkStoreTypes {
 		st.SqlSupplier = sqlstore.NewSqlSupplier(*st.SqlSettings, nil)
-		st.Store = NewLocalCacheLayer(st.SqlSupplier, nil, nil, getMockCacheProvider())
+		st.Store = NewLocalCacheLayer(st.SqlSupplier, nil, nil, new(lru.CacheProvider))
 	}
 	wg.Wait()
 }

@@ -19,8 +19,8 @@ func TestPostStore(t *testing.T) {
 	StoreTestWithSqlSupplier(t, storetest.TestPostStore)
 }
 
-func BenchmarkChannelStore(b *testing.B) {
-	StoreBenchmark(b, storebenchmark.BenchmarkChannelStore)
+func BenchmarkPostStore(b *testing.B) {
+	StoreBenchmark(b, storebenchmark.BenchmarkPostStore)
 }
 
 func TestPostStoreLastPostTimeCache(t *testing.T) {
