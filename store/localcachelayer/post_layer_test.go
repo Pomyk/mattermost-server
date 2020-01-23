@@ -26,11 +26,6 @@ func BenchmarkChannelStore(b *testing.B) {
 func TestPostStoreLastPostTimeCache(t *testing.T) {
 	var fakeLastTime int64 = 1
 	channelId := "channelId"
-	fakeOptions := model.GetPostsSinceOptions{
-		ChannelId:        channelId,
-		Time:             fakeLastTime,
-		SkipFetchThreads: false,
-	}
 
 	t.Run("GetEtag: first call not cached, second cached and returning same data", func(t *testing.T) {
 		mockStore := getMockStore()
@@ -90,12 +85,12 @@ func TestPostStoreLastPostTimeCache(t *testing.T) {
 
 		expectedResult := model.NewPostList()
 
-		list, err := cachedStore.Post().GetPostsSince(fakeOptions, true)
+		list, err := cachedStore.Post().GetPostsSince(channelId, fakeLastTime, true)
 		require.Nil(t, err)
 		assert.Equal(t, list, expectedResult)
 		mockStore.Post().(*mocks.PostStore).AssertNumberOfCalls(t, "GetPostsSince", 1)
 
-		list, err = cachedStore.Post().GetPostsSince(fakeOptions, true)
+		list, err = cachedStore.Post().GetPostsSince(channelId, fakeLastTime, true)
 		require.Nil(t, err)
 		assert.Equal(t, list, expectedResult)
 		mockStore.Post().(*mocks.PostStore).AssertNumberOfCalls(t, "GetPostsSince", 1)
@@ -106,9 +101,9 @@ func TestPostStoreLastPostTimeCache(t *testing.T) {
 		mockCacheProvider := getMockCacheProvider()
 		cachedStore := NewLocalCacheLayer(mockStore, nil, nil, mockCacheProvider)
 
-		cachedStore.Post().GetPostsSince(fakeOptions, true)
+		cachedStore.Post().GetPostsSince(channelId, fakeLastTime, true)
 		mockStore.Post().(*mocks.PostStore).AssertNumberOfCalls(t, "GetPostsSince", 1)
-		cachedStore.Post().GetPostsSince(fakeOptions, false)
+		cachedStore.Post().GetPostsSince(channelId, fakeLastTime, false)
 		mockStore.Post().(*mocks.PostStore).AssertNumberOfCalls(t, "GetPostsSince", 2)
 	})
 
@@ -117,10 +112,10 @@ func TestPostStoreLastPostTimeCache(t *testing.T) {
 		mockCacheProvider := getMockCacheProvider()
 		cachedStore := NewLocalCacheLayer(mockStore, nil, nil, mockCacheProvider)
 
-		cachedStore.Post().GetPostsSince(fakeOptions, true)
+		cachedStore.Post().GetPostsSince(channelId, fakeLastTime, true)
 		mockStore.Post().(*mocks.PostStore).AssertNumberOfCalls(t, "GetPostsSince", 1)
 		cachedStore.Post().InvalidateLastPostTimeCache(channelId)
-		cachedStore.Post().GetPostsSince(fakeOptions, true)
+		cachedStore.Post().GetPostsSince(channelId, fakeLastTime, true)
 		mockStore.Post().(*mocks.PostStore).AssertNumberOfCalls(t, "GetPostsSince", 2)
 	})
 
@@ -129,29 +124,28 @@ func TestPostStoreLastPostTimeCache(t *testing.T) {
 		mockCacheProvider := getMockCacheProvider()
 		cachedStore := NewLocalCacheLayer(mockStore, nil, nil, mockCacheProvider)
 
-		cachedStore.Post().GetPostsSince(fakeOptions, true)
+		cachedStore.Post().GetPostsSince(channelId, fakeLastTime, true)
 		mockStore.Post().(*mocks.PostStore).AssertNumberOfCalls(t, "GetPostsSince", 1)
 		cachedStore.Post().ClearCaches()
-		cachedStore.Post().GetPostsSince(fakeOptions, true)
+		cachedStore.Post().GetPostsSince(channelId, fakeLastTime, true)
 		mockStore.Post().(*mocks.PostStore).AssertNumberOfCalls(t, "GetPostsSince", 2)
 	})
 }
 
 func TestPostStoreCache(t *testing.T) {
 	fakePosts := &model.PostList{}
-	fakeOptions := model.GetPostsOptions{ChannelId: "123", PerPage: 30}
 
 	t.Run("first call not cached, second cached and returning same data", func(t *testing.T) {
 		mockStore := getMockStore()
 		mockCacheProvider := getMockCacheProvider()
 		cachedStore := NewLocalCacheLayer(mockStore, nil, nil, mockCacheProvider)
 
-		gotPosts, err := cachedStore.Post().GetPosts(fakeOptions, true)
+		gotPosts, err := cachedStore.Post().GetPosts("123", 0, 30, true)
 		require.Nil(t, err)
 		assert.Equal(t, fakePosts, gotPosts)
 		mockStore.Post().(*mocks.PostStore).AssertNumberOfCalls(t, "GetPosts", 1)
 
-		_, _ = cachedStore.Post().GetPosts(fakeOptions, true)
+		_, _ = cachedStore.Post().GetPosts("123", 0, 30, true)
 		mockStore.Post().(*mocks.PostStore).AssertNumberOfCalls(t, "GetPosts", 1)
 	})
 
@@ -160,12 +154,12 @@ func TestPostStoreCache(t *testing.T) {
 		mockCacheProvider := getMockCacheProvider()
 		cachedStore := NewLocalCacheLayer(mockStore, nil, nil, mockCacheProvider)
 
-		gotPosts, err := cachedStore.Post().GetPosts(fakeOptions, true)
+		gotPosts, err := cachedStore.Post().GetPosts("123", 0, 30, true)
 		require.Nil(t, err)
 		assert.Equal(t, fakePosts, gotPosts)
 		mockStore.Post().(*mocks.PostStore).AssertNumberOfCalls(t, "GetPosts", 1)
 
-		_, _ = cachedStore.Post().GetPosts(fakeOptions, false)
+		_, _ = cachedStore.Post().GetPosts("123", 0, 30, false)
 		mockStore.Post().(*mocks.PostStore).AssertNumberOfCalls(t, "GetPosts", 2)
 	})
 
@@ -174,14 +168,14 @@ func TestPostStoreCache(t *testing.T) {
 		mockCacheProvider := getMockCacheProvider()
 		cachedStore := NewLocalCacheLayer(mockStore, nil, nil, mockCacheProvider)
 
-		gotPosts, err := cachedStore.Post().GetPosts(fakeOptions, true)
+		gotPosts, err := cachedStore.Post().GetPosts("123", 0, 30, true)
 		require.Nil(t, err)
 		assert.Equal(t, fakePosts, gotPosts)
 		mockStore.Post().(*mocks.PostStore).AssertNumberOfCalls(t, "GetPosts", 1)
 
 		cachedStore.Post().InvalidateLastPostTimeCache("12360")
 
-		_, _ = cachedStore.Post().GetPosts(fakeOptions, true)
+		_, _ = cachedStore.Post().GetPosts("123", 0, 30, true)
 		mockStore.Post().(*mocks.PostStore).AssertNumberOfCalls(t, "GetPosts", 1)
 
 	})
