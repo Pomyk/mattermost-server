@@ -49,29 +49,70 @@ func BenchmarkPostStore(b *testing.B, ss store.Store) {
 				postList, appErr = s.GetFlaggedPostsForChannel(userId, channelId, 0, 100)
 			}
 		})
-		b.Run("GetPosts/"+num, func(b *testing.B) {
+		b.Run("GetPosts(skipThreads=true)/"+num, func(b *testing.B) {
+			opts := model.GetPostsOptions{
+				ChannelId:        channelId,
+				Page:             0,
+				PerPage:          100,
+				SkipFetchThreads: true,
+			}
 			for i := 0; i < b.N; i++ {
-				postList, appErr = s.GetPosts(channelId, 0, 60, false)
+				postList, appErr = s.GetPosts(opts, false)
 			}
 		})
-		b.Run("GetPosts(cached)/"+num, func(b *testing.B) {
+		b.Run("GetPosts(skipThreads=false)/"+num, func(b *testing.B) {
+			opts := model.GetPostsOptions{
+				ChannelId:        channelId,
+				Page:             0,
+				PerPage:          100,
+				SkipFetchThreads: false,
+			}
 			for i := 0; i < b.N; i++ {
-				postList, appErr = s.GetPosts(channelId, 0, 60, true)
+				postList, appErr = s.GetPosts(opts, false)
 			}
 		})
-		b.Run("GetPostsSince/"+num, func(b *testing.B) {
+		b.Run("GetPostsSince(skipThreads=true)/"+num, func(b *testing.B) {
+			opts := model.GetPostsSinceOptions{
+				ChannelId:        channelId,
+				Time:             1574630071540,
+				SkipFetchThreads: true,
+			}
 			for i := 0; i < b.N; i++ {
-				postList, appErr = s.GetPostsSince(channelId, 1574630071540, false)
+				postList, appErr = s.GetPostsSince(opts, false)
 			}
 		})
-		b.Run("GetPostsSince(cached)/"+num, func(b *testing.B) {
+		b.Run("GetPostsSince(skipThreads=false)/"+num, func(b *testing.B) {
+			opts := model.GetPostsSinceOptions{
+				ChannelId:        channelId,
+				Time:             1574630071540,
+				SkipFetchThreads: false,
+			}
 			for i := 0; i < b.N; i++ {
-				postList, appErr = s.GetPostsSince(channelId, 1574630071540, true)
+				postList, appErr = s.GetPostsSince(opts, false)
 			}
 		})
-		b.Run("GetPostsAfter/"+num, func(b *testing.B) {
+		b.Run("GetPostsAfter(skipThreads=true)/"+num, func(b *testing.B) {
+			opts := model.GetPostsOptions{
+				ChannelId:        channelId,
+				PostId:           postId,
+				SkipFetchThreads: true,
+				Page:             0,
+				PerPage:          100,
+			}
 			for i := 0; i < b.N; i++ {
-				postList, appErr = s.GetPostsAfter(channelId, postId, 100, 0)
+				postList, appErr = s.GetPostsAfter(opts)
+			}
+		})
+		b.Run("GetPostsAfter(skipThreads=false)/"+num, func(b *testing.B) {
+			opts := model.GetPostsOptions{
+				ChannelId:        channelId,
+				PostId:           postId,
+				SkipFetchThreads: false,
+				Page:             0,
+				PerPage:          100,
+			}
+			for i := 0; i < b.N; i++ {
+				postList, appErr = s.GetPostsAfter(opts)
 			}
 		})
 	}
